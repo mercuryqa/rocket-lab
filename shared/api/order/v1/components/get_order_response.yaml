@@ -1,0 +1,4 @@
+name: GetOrderResponse
+description: Ответ с полной информацией о заказе
+allOf:
+  - $ref: './order_dto.yaml'

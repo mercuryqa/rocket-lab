@@ -1,0 +1,7 @@
+name: PayOrderRequest
+type: object
+required:
+  - payment_method
+properties:
+  payment_method:
+    $ref: './enums/payment_method.yaml'

@@ -1,0 +1,3 @@
+name: CancelOrderResponse
+description: Пустой ответ при успешной отмене (успех определяется кодом 200)
+type: object

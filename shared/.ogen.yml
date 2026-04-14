@@ -1,0 +1,20 @@
+# Конфигурационный файл для ogen (генератора Go-кода из OpenAPI спецификаций).
+# Ogen автоматически ищет этот файл в текущей директории при запуске.
+#
+# Документация: https://ogen.dev/docs/configuration
+
+parser:
+  # allow_remote разрешает парсеру загружать внешние файлы по URL.
+  # Это нужно когда в OpenAPI спецификации используются $ref ссылки
+  # на удалённые ресурсы, например:
+  #   $ref: 'https://example.com/schemas/common.yaml#/components/schemas/Error'
+  # По умолчанию: false (из соображений безопасности)
+  allow_remote: true
+
+generator:
+  # convenient_errors отключает генерацию "удобных" ошибок через GenericErrorStatusCode.
+  # Когда в OpenAPI есть секция "default" response, ogen генерирует специальный тип
+  # GenericErrorStatusCode, который позволяет возвращать ошибки с произвольным HTTP-кодом.
+  # Мы не используем "default" response (указываем конкретные коды: 400, 404, 500),
+  # поэтому отключаем эту фичу, чтобы убрать INFO-сообщение при генерации.
+  convenient_errors: false
