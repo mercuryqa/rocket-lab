@@ -1,10 +1,18 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -14,9 +22,38 @@ import (
 )
 
 const (
+	httpPort = "8080"
+
 	inventoryServiceAddress = "localhost:50051"
 	paymentServiceAddress   = "localhost:50052"
+
+	readHeaderTimeout = 5 * time.Second
+	readTimeout       = 15 * time.Second
+	writeTimeout      = 15 * time.Second
+	idleTimeout       = 60 * time.Second
+	shutdownTimeout   = 10 * time.Second
+	middlewareTimeout = 10 * time.Second
 )
+
+func setupRouter(api http.Handler) http.Handler {
+	r := chi.NewRouter()
+
+	// middleware
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
+	r.Use(middleware.Timeout(middlewareTimeout))
+
+	// healthcheck (очень желательно)
+	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	})
+
+	// OpenAPI
+	r.Mount("/api", api)
+
+	return r
+}
 
 func main() {
 	// TODO: Настроить gRPC клиент с параметрами keepalive
@@ -32,7 +69,13 @@ func main() {
 	}
 	defer inventoryConn.Close()
 
-	// TODO: Создать gRPC клиент PaymentService
+	paymentConn, err := grpc.NewClient(paymentServiceAddress,
+		grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		slog.Error("не удалось подключиться к PaymentService", "error", err)
+		os.Exit(1)
+	}
+	defer paymentConn.Close()
 
 	// Создаём хранилище и обработчик
 	store := orderHandler.NewOrderStore()
@@ -42,33 +85,43 @@ func main() {
 		store,
 	)
 
-	// TODO: Сгенерировать код ogen из OpenAPI спецификации
-	// Команда: task ogen:gen
-
 	// Создать OpenAPI сервер
-	orderServer, err := orderHandler.SetupServer(h)
+	apiServer, err := orderHandler.SetupServer(h)
 	if err != nil {
 		slog.Error("ошибка создания сервера OpenAPI", "error", err)
 		os.Exit(1)
 	}
 
-	// TODO: Настроить HTTP сервер с таймаутами
-	// Подумайте, какие таймауты стоит задать для production-ready сервера
-	// См. examples/week_1/HTTP_SERVER.md
+	handler := setupRouter(apiServer)
 
-	// TODO: Реализовать graceful shutdown для HTTP сервера
-	// При получении сигнала SIGINT/SIGTERM сервер должен:
-	// 1. Перестать принимать новые соединения
-	// 2. Дождаться завершения текущих запросов (с таймаутом)
-	// 3. Закрыть gRPC соединения
-	// 4. Корректно завершить работу
-	// Подсказка: используйте signal.Notify и httpServer.Shutdown(ctx)
-
-	slog.Info("запуск OrderService", "port", 8080)
-
-	err = http.ListenAndServe(":8080", orderServer)
-	if err != nil {
-		slog.Error("ошибка запуска сервера", "error", err)
-		os.Exit(1)
+	server := &http.Server{
+		Addr:              net.JoinHostPort("localhost", httpPort),
+		Handler:           handler,
+		ReadHeaderTimeout: readHeaderTimeout,
+		ReadTimeout:       readTimeout,
+		WriteTimeout:      writeTimeout,
+		IdleTimeout:       idleTimeout,
 	}
+
+	go func() {
+		slog.Info("HTTP-сервер запущен на порту", "port", httpPort)
+		if serveErr := server.ListenAndServe(); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
+			slog.Error("ошибка запуска сервера", "error", serveErr)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	slog.Info("завершение работы сервера...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+
+	if shutdownErr := server.Shutdown(ctx); shutdownErr != nil {
+		slog.Error("ошибка при остановке сервера", "error", shutdownErr)
+	}
+
+	slog.Info("сервер остановлен")
 }

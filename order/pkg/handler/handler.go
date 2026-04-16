@@ -144,9 +144,8 @@ func (h *OrderHandler) GetOrder(_ context.Context, params orderv1.GetOrderParams
 //
 // CancelOrder реализует операцию cancelOrder
 // POST /api/v1/orders/{order_uuid}/cancel
-// func (h *OrderHandler) CancelOrder(ctx context.Context, params orderv1.CancelOrderParams) (orderv1.CancelOrderRes, error) {
-//     // 1. Найти заказ в store
+//func (h *OrderHandler) CancelOrder(ctx context.Context, params orderv1.CancelOrderParams) (orderv1.CancelOrderRes, error) {
 //     // 2. Проверить статус == PENDING_PAYMENT
 //     // 3. Обновить статус на CANCELLED
 //     // 4. Вернуть success
-// }
+//}
