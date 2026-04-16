@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"sync"
 	"time"
@@ -134,14 +135,80 @@ func (h *OrderHandler) GetOrder(_ context.Context, params orderv1.GetOrderParams
 //
 // PayOrder реализует операцию payOrder
 // POST /api/v1/orders/{order_uuid}/pay
-// func (h *OrderHandler) PayOrder(ctx context.Context, req *orderv1.PayOrderRequest, params orderv1.PayOrderParams) (orderv1.PayOrderRes, error) {
-//     // 1. Найти заказ в store
-//     // 2. Проверить статус == PENDING_PAYMENT
-//     // 3. Вызвать h.paymentClient.PayOrder для обработки платежа
-//     // 4. Обновить статус на PAID и сохранить transaction_uuid
-//     // 5. Вернуть transaction_uuid
-// }
-//
+
+func (h *OrderHandler) PayOrder(ctx context.Context, req *orderv1.PayOrderRequest, params orderv1.PayOrderParams) (orderv1.PayOrderRes, error) {
+	// 1. Найти заказ в store
+	h.store.mu.RLock()
+	order := h.store.orders[params.OrderUUID]
+	h.store.mu.RUnlock()
+
+	// 2. Проверить статус == PENDING_PAYMENT
+	if order.Status != string(orderv1.OrderStatusPENDINGPAYMENT) {
+		switch order.Status {
+		case string(orderv1.OrderStatusPAID):
+			return &orderv1.PayOrderConflict{
+				Code:    http.StatusConflict,
+				Message: "заказ уже оплачен или отменён",
+			}, nil
+		case string(orderv1.OrderStatusCANCELLED):
+			return &orderv1.PayOrderConflict{
+				Code:    http.StatusConflict,
+				Message: "заказ уже оплачен или отменён",
+			}, nil
+
+		default:
+			return &orderv1.PayOrderConflict{
+				Code:    http.StatusNotFound,
+				Message: "заказ не найден",
+			}, nil
+		}
+	}
+
+	var paymentMethod paymentv1.PaymentMethod
+
+	switch req.PaymentMethod {
+	case orderv1.PaymentMethodCARD:
+		paymentMethod = paymentv1.PaymentMethod_PAYMENT_METHOD_CARD
+	case orderv1.PaymentMethodSBP:
+		paymentMethod = paymentv1.PaymentMethod_PAYMENT_METHOD_SBP
+	case orderv1.PaymentMethodCREDITCARD:
+		paymentMethod = paymentv1.PaymentMethod_PAYMENT_METHOD_CREDIT_CARD
+	case orderv1.PaymentMethodINVESTORMONEY:
+		paymentMethod = paymentv1.PaymentMethod_PAYMENT_METHOD_INVESTOR_MONEY
+	default:
+		return nil, errors.New("unknown payment method")
+	}
+
+	// 3. Вызвать h.paymentClient.PayOrder для обработки платежа
+	resp, err := h.paymentClient.PayOrder(
+		ctx,
+		&paymentv1.PayOrderRequest{
+			OrderUuid:     params.OrderUUID.String(),
+			PaymentMethod: paymentMethod,
+		},
+	)
+	if err != nil {
+		return &orderv1.PayOrderInternalServerError{
+			Code:    500,
+			Message: "ошибка оплаты",
+		}, nil
+	}
+	transactionUUID := uuid.MustParse(resp.TransactionUuid)
+
+	// 4. Обновить статус на PAID и сохранить transaction_uuid
+	order.Status = string(orderv1.OrderStatusPAID)
+	order.TransactionUUID = &transactionUUID
+
+	h.store.mu.RLock()
+	h.store.orders[params.OrderUUID] = order
+	h.store.mu.RUnlock()
+
+	// 5. Вернуть transaction_uuid
+	return &orderv1.PayOrderResponse{
+		TransactionUUID: transactionUUID,
+	}, nil
+}
+
 // CancelOrder реализует операцию cancelOrder
 // POST /api/v1/orders/{order_uuid}/cancel
 

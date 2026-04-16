@@ -21,7 +21,6 @@ func (s *PaymentServer) PayOrder(
 	ctx context.Context,
 	req *paymentv1.PayOrderRequest,
 ) (*paymentv1.PayOrderResponse, error) {
-
 	orderUUID := req.GetOrderUuid()
 	// 1. Проверить, что order_uuid не пустой → INVALID_ARGUMENT
 	if orderUUID == "" {
@@ -40,7 +39,7 @@ func (s *PaymentServer) PayOrder(
 	// 5. Вывести в лог: "оплата прошла успешно, order_uuid: X, transaction_uuid: Y"
 	slog.Info("оплата прошла успешно",
 		"order_uuid", req.GetOrderUuid(),
-		"transaction_uuid: ", transactionUUID,
+		"transaction_uuid", transactionUUID,
 	)
 	// 6. Вернуть transaction_uuid
 	return &paymentv1.PayOrderResponse{
