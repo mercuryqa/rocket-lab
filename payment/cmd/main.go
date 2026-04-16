@@ -26,9 +26,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// TODO: Настроить gRPC сервер с параметрами keepalive
-	// Подумайте, какие параметры стоит задать для production-ready сервера
-	// См. examples/week_1/GRPC_CONNECTIONS.md
 	kaParams := keepalive.ServerParameters{
 		MaxConnectionIdle:     5 * time.Minute,  // закрыть idle соединение
 		MaxConnectionAge:      30 * time.Minute, // максимальное время жизни соединения
@@ -62,6 +59,7 @@ func main() {
 		}
 	}()
 
+	// GracefulStop
 	shutdownTimeout := 10 * time.Second
 
 	quit := make(chan os.Signal, 1)
