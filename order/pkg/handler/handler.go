@@ -144,8 +144,40 @@ func (h *OrderHandler) GetOrder(_ context.Context, params orderv1.GetOrderParams
 //
 // CancelOrder реализует операцию cancelOrder
 // POST /api/v1/orders/{order_uuid}/cancel
-//func (h *OrderHandler) CancelOrder(ctx context.Context, params orderv1.CancelOrderParams) (orderv1.CancelOrderRes, error) {
-//     // 2. Проверить статус == PENDING_PAYMENT
-//     // 3. Обновить статус на CANCELLED
-//     // 4. Вернуть success
-//}
+
+func (h *OrderHandler) CancelOrder(ctx context.Context, params orderv1.CancelOrderParams) (orderv1.CancelOrderRes, error) {
+
+	h.store.mu.RLock()
+	order, ok := h.store.orders[params.OrderUUID]
+	h.store.mu.RUnlock()
+
+	if !ok {
+		return &orderv1.CancelOrderNotFound{
+			Code:    http.StatusNotFound,
+			Message: "заказ не найден",
+		}, nil
+	}
+
+	if order.Status != string(orderv1.OrderStatusPENDINGPAYMENT) {
+		switch order.Status {
+		case string(orderv1.OrderStatusPAID):
+			return &orderv1.CancelOrderConflict{
+				Code:    http.StatusConflict,
+				Message: "заказ уже оплачен и не может быть отменён",
+			}, nil
+		case string(orderv1.OrderStatusCANCELLED):
+			return &orderv1.CancelOrderConflict{
+				Code:    http.StatusConflict,
+				Message: "заказ уже отменен",
+			}, nil
+		}
+	}
+
+	order.Status = string(orderv1.OrderStatusCANCELLED)
+
+	h.store.mu.RLock()
+	h.store.orders[params.OrderUUID] = order
+	h.store.mu.RUnlock()
+
+	return &orderv1.CancelOrderResponse{}, nil
+}

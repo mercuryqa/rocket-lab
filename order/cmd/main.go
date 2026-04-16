@@ -39,16 +39,9 @@ const (
 func setupRouter(api http.Handler) http.Handler {
 	r := chi.NewRouter()
 
-	// middleware
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(middlewareTimeout))
-
-	// healthcheck (очень желательно)
-	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
-	})
 
 	// OpenAPI
 	r.Mount("/api", api)
@@ -68,9 +61,6 @@ func grpcClientOptions() []grpc.DialOption {
 }
 
 func main() {
-	// TODO: Настроить gRPC клиент с параметрами keepalive
-	// Подумайте, какие параметры стоит задать для gRPC клиента
-	// См. examples/week_1/GRPC_CONNECTIONS.md
 
 	// Создать gRPC соединение с InventoryService
 	inventoryConn, err := grpc.NewClient(
