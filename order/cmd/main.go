@@ -15,6 +15,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
 
 	orderHandler "github.com/mercuryqa/order/pkg/handler"
 	inventoryv1 "github.com/mercuryqa/shared/pkg/proto/inventory/v1"
@@ -55,22 +56,37 @@ func setupRouter(api http.Handler) http.Handler {
 	return r
 }
 
+func grpcClientOptions() []grpc.DialOption {
+	return []grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:                30 * time.Second,
+			Timeout:             5 * time.Second,
+			PermitWithoutStream: true,
+		}),
+	}
+}
+
 func main() {
 	// TODO: Настроить gRPC клиент с параметрами keepalive
 	// Подумайте, какие параметры стоит задать для gRPC клиента
 	// См. examples/week_1/GRPC_CONNECTIONS.md
 
 	// Создать gRPC соединение с InventoryService
-	inventoryConn, err := grpc.NewClient(inventoryServiceAddress,
-		grpc.WithTransportCredentials(insecure.NewCredentials()))
+	inventoryConn, err := grpc.NewClient(
+		inventoryServiceAddress,
+		grpcClientOptions()...
+		)
 	if err != nil {
 		slog.Error("не удалось подключиться к InventoryService", "error", err)
 		os.Exit(1)
 	}
 	defer inventoryConn.Close()
 
-	paymentConn, err := grpc.NewClient(paymentServiceAddress,
-		grpc.WithTransportCredentials(insecure.NewCredentials()))
+	paymentConn, err := grpc.NewClient(
+		paymentServiceAddress,
+		grpcClientOptions()...
+	)
 	if err != nil {
 		slog.Error("не удалось подключиться к PaymentService", "error", err)
 		os.Exit(1)
