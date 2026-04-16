@@ -53,20 +53,19 @@ func grpcClientOptions() []grpc.DialOption {
 	return []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			Time:                30 * time.Second,
-			Timeout:             5 * time.Second,
-			PermitWithoutStream: true,
+			Time:                1 * time.Minute,
+			Timeout:             10 * time.Second,
+			PermitWithoutStream: false,
 		}),
 	}
 }
 
 func main() {
-
 	// Создать gRPC соединение с InventoryService
 	inventoryConn, err := grpc.NewClient(
 		inventoryServiceAddress,
-		grpcClientOptions()...
-		)
+		grpcClientOptions()...,
+	)
 	if err != nil {
 		slog.Error("не удалось подключиться к InventoryService", "error", err)
 		os.Exit(1)
@@ -75,7 +74,7 @@ func main() {
 
 	paymentConn, err := grpc.NewClient(
 		paymentServiceAddress,
-		grpcClientOptions()...
+		grpcClientOptions()...,
 	)
 	if err != nil {
 		slog.Error("не удалось подключиться к PaymentService", "error", err)

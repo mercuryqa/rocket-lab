@@ -146,7 +146,6 @@ func (h *OrderHandler) GetOrder(_ context.Context, params orderv1.GetOrderParams
 // POST /api/v1/orders/{order_uuid}/cancel
 
 func (h *OrderHandler) CancelOrder(ctx context.Context, params orderv1.CancelOrderParams) (orderv1.CancelOrderRes, error) {
-
 	h.store.mu.RLock()
 	order, ok := h.store.orders[params.OrderUUID]
 	h.store.mu.RUnlock()
