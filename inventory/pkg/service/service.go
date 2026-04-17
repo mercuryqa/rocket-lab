@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 
+	"github.com/go-faster/errors"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -97,13 +98,42 @@ func (s *InventoryServer) GetPart(
 	ctx context.Context,
 	req *inventoryv1.GetPartRequest,
 ) (*inventoryv1.GetPartResponse, error) {
-	// TODO: Реализовать метод
+
+	partUUID, err := uuid.Parse(req.GetUuid())
+	if err != nil {
+		return nil, errors.New("не удалось получить uuid")
+	}
+
 	// 1. Проверить, что uuid не пустой → INVALID_ARGUMENT
+	if partUUID.String() == "" {
+		return nil, status.Error(codes.InvalidArgument, "part_uuid пустой")
+	}
+
 	// 2. Валидировать формат UUID → INVALID_ARGUMENT
+	if _, err := uuid.Parse(partUUID.String()); err != nil {
+		return nil, status.Error(codes.InvalidArgument, "неверный формат part_uuid")
+	}
 	// 3. Найти деталь в map
+	part, ok := s.parts[partUUID]
+
 	// 4. Если не найдена → NOT_FOUND
+	if !ok {
+		return nil, status.Error(codes.NotFound, "part not found")
+	}
+
 	// 5. Преобразовать в inventoryv1.Part
 	// 6. Вернуть деталь
+	return &inventoryv1.GetPartResponse{
+		Part: &inventoryv1.Part{
+			Uuid:          part.UUID,
+			Name:          part.Name,
+			Description:   part.Description,
+			Price:         part.Price,
+			PartType:      part.PartType,
+			StockQuantity: part.StockQuantity,
+			CreatedAt:     part.CreatedAt,
+		},
+	}, nil
 
 	// TODO: Валидация формата UUID v4
 	// Можно использовать github.com/google/uuid:

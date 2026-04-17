@@ -118,20 +118,136 @@ func (h *OrderHandler) GetOrder(_ context.Context, params orderv1.GetOrderParams
 	}, nil
 }
 
-// TODO: Реализовать остальные методы интерфейса orderv1.Handler:
-//
 // CreateOrder реализует операцию createOrder
 // POST /api/v1/orders
-// func (h *OrderHandler) CreateOrder(ctx context.Context, req *orderv1.CreateOrderRequest) (orderv1.CreateOrderRes, error) {
-//     // 1. Валидация: hull_uuid и engine_uuid обязательны
-//     // 2. Получить детали через InventoryService.GetPart
-//     // 3. Проверить stock_quantity > 0
-//     // 4. Вычислить total_price
-//     // 5. Сгенерировать order_uuid (UUID v4)
-//     // 6. Создать заказ со статусом PENDING_PAYMENT
-//     // 7. Сохранить в store
-//     // 8. Вернуть order_uuid и total_price
-// }
+
+func (h *OrderHandler) CreateOrder(ctx context.Context, req *orderv1.CreateOrderRequest) (orderv1.CreateOrderRes, error) {
+	hullUUID := req.GetHullUUID()
+	engineUUID := req.GetEngineUUID()
+	shieldUUID := req.GetShieldUUID()
+	weaponUUID := req.GetWeaponUUID()
+
+	parts := []struct {
+		uuid string
+		name string
+	}{
+		{hullUUID.String(), "hull"},
+		{engineUUID.String(), "engine"},
+	}
+
+	var optionalParts []struct {
+		uuid string
+		name string
+	}
+
+	if shieldUUID.Set && !shieldUUID.Null {
+		optionalParts = append(optionalParts, struct {
+			uuid string
+			name string
+		}{
+			uuid: shieldUUID.Value.String(),
+			name: "shield",
+		})
+	}
+
+	if weaponUUID.Set && !weaponUUID.Null {
+		optionalParts = append(optionalParts, struct {
+			uuid string
+			name string
+		}{
+			uuid: weaponUUID.Value.String(),
+			name: "weapon",
+		})
+	}
+
+	var totalPrice int64
+
+	for _, part := range parts {
+		// 1. Валидация: hull_uuid и engine_uuid обязательны
+		if part.uuid == "" {
+			return &orderv1.CreateOrderBadRequest{
+				Code:    400,
+				Message: "в заказе нет hull_uuid или engine_uuid",
+			}, nil
+		}
+		// 2. Получить детали через InventoryService.GetPart
+		resp, err := h.inventoryClient.GetPart(ctx, &inventoryv1.GetPartRequest{
+			Uuid: part.uuid,
+		})
+		if err != nil {
+			return &orderv1.CreateOrderInternalServerError{
+				Code:    500,
+				Message: "inventory сервис не доступен",
+			}, nil
+		}
+
+		part := resp.Part
+
+		// 3. Проверить stock_quantity > 0
+		if part.StockQuantity <= 0 {
+			return &orderv1.CreateOrderConflict{
+				Code:    409,
+				Message: "недостаточно деталей",
+			}, nil
+		}
+
+		// 4. Вычислить total_price
+		totalPrice += part.Price
+	}
+
+	for _, optionalPart := range optionalParts {
+		// 2. Получить детали через InventoryService.GetPart
+		if optionalPart.uuid == "" {
+			continue
+		}
+
+		resp, err := h.inventoryClient.GetPart(ctx, &inventoryv1.GetPartRequest{
+			Uuid: optionalPart.uuid,
+		})
+		if err != nil {
+			return &orderv1.CreateOrderInternalServerError{
+				Code:    500,
+				Message: "inventory сервис не доступен",
+			}, nil
+		}
+
+		optionalPart := resp.Part
+
+		// 3. Проверить stock_quantity > 0
+		if optionalPart.StockQuantity <= 0 {
+			return &orderv1.CreateOrderConflict{
+				Code:    409,
+				Message: "недостаточно деталей",
+			}, nil
+		}
+
+		// 4. Вычислить total_price
+		totalPrice += optionalPart.Price
+	}
+
+	// 5. Сгенерировать order_uuid (UUID v4)
+	orderUUID := uuid.New()
+
+	// 6. Создать заказ со статусом PENDING_PAYMENT
+	order := Order{
+		OrderUUID:  orderUUID,
+		HullUUID:   hullUUID,
+		EngineUUID: engineUUID,
+		ShieldUUID: optToPtr(shieldUUID),
+		WeaponUUID: optToPtr(weaponUUID),
+		TotalPrice: totalPrice,
+		Status:     string(orderv1.OrderStatusPENDINGPAYMENT),
+	}
+	// 7. Сохранить в store
+	h.store.orders[orderUUID] = order
+
+	// 8. Вернуть order_uuid и total_price
+	return &orderv1.CreateOrderResponse{
+		OrderUUID:  orderUUID,
+		TotalPrice: totalPrice,
+	}, nil
+}
+
 //
 // PayOrder реализует операцию payOrder
 // POST /api/v1/orders/{order_uuid}/pay
@@ -246,4 +362,11 @@ func (h *OrderHandler) CancelOrder(ctx context.Context, params orderv1.CancelOrd
 	h.store.mu.RUnlock()
 
 	return &orderv1.CancelOrderResponse{}, nil
+}
+
+func optToPtr(v orderv1.OptNilUUID) *uuid.UUID {
+	if v.Set && !v.Null {
+		return &v.Value
+	}
+	return nil
 }
