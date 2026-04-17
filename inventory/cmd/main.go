@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/mercuryqa/inventory/internal/interceptor"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
@@ -38,10 +39,18 @@ func main() {
 		MinTime:             1 * time.Minute, // минимальный интервал между ping от клиента
 		PermitWithoutStream: false,           // запрещаем ping без активных RPC
 	}
+
 	grpcServer := grpc.NewServer(
 		grpc.KeepaliveParams(kaParams),
 		grpc.KeepaliveEnforcementPolicy(kaPolicy),
+
+		// Интерцепторы: recovery (перехват паник) + логирование запросов
+		grpc.ChainUnaryInterceptor(
+			interceptor.RecoveryInterceptor(),
+			interceptor.LoggerInterceptor(),
+		),
 	)
+
 	inventoryv1.RegisterInventoryServiceServer(grpcServer, svc.NewInventoryServer())
 
 	// Включаем reflection для postman/grpcurl
@@ -57,13 +66,6 @@ func main() {
 			}
 		}
 	}()
-
-	// TODO: Реализовать graceful shutdown
-	// При получении сигнала SIGINT/SIGTERM сервер должен:
-	// 1. Перестать принимать новые соединения
-	// 2. Дождаться завершения текущих запросов
-	// 3. Корректно завершить работу
-	// Подсказка: используйте signal.Notify и grpcServer.GracefulStop()
 
 	// GracefulStop
 	shutdownTimeout := 10 * time.Second

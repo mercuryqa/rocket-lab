@@ -9,11 +9,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/mercuryqa/payment/internal/interceptor"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
 
-	"github.com/mercuryqa/payment/internal/interceptor"
 	svc "github.com/mercuryqa/payment/pkg/service"
 	paymentv1 "github.com/mercuryqa/shared/pkg/proto/payment/v1"
 )
@@ -43,13 +43,15 @@ func main() {
 	grpcServer := grpc.NewServer(
 		grpc.KeepaliveParams(kaParams),
 		grpc.KeepaliveEnforcementPolicy(kaPolicy),
+
+		// Интерцепторы: recovery (перехват паник) + логирование запросов
+		grpc.ChainUnaryInterceptor(
+			interceptor.RecoveryInterceptor(),
+			interceptor.LoggerInterceptor(),
+		),
 	)
 
-	// Интерцепторы: recovery (перехват паник) + логирование запросов
-	grpc.ChainUnaryInterceptor(
-		interceptor.RecoveryInterceptor(),
-		interceptor.LoggerInterceptor(),
-	)
+
 
 	paymentv1.RegisterPaymentServiceServer(grpcServer, &svc.PaymentServer{})
 
