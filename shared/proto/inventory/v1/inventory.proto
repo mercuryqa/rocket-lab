@@ -2,51 +2,68 @@ syntax = "proto3";
 
 package inventory.v1;
 
-// TODO: Заменить на актуальный go_package
-option go_package = "github.com/mercuryqa/shared/pkg/proto/inventory/v1;inventoryv1";
-
 import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/mercuryqa/shared/pkg/proto/inventory/v1;inventoryv1";
 
 // InventoryService управляет каталогом деталей для космических кораблей
 service InventoryService {
   // GetPart возвращает деталь по UUID
   rpc GetPart(GetPartRequest) returns (GetPartResponse);
-
-  // TODO: Добавить метод ListParts
+  // ListParts возвращает список деталей с возможностью фильтрации по типу или по конкретным UUID
+  rpc ListParts(ListPartsRequest) returns (ListPartsResponse);
 }
 
-// Тип детали
+// PartType тип детали
 enum PartType {
   PART_TYPE_UNSPECIFIED = 0;
   PART_TYPE_HULL = 1;
   PART_TYPE_ENGINE = 2;
-  // TODO: Добавить остальные типы деталей из описания задания
+  PART_TYPE_SHIELD = 3;
+  PART_TYPE_WEAPON = 4;
 }
 
 // Part представляет деталь космического корабля
 message Part {
-  // Уникальный идентификатор детали
+  // UUID уникальный идентификатор детали
   string uuid = 1;
 
-  // Название детали
+  // Name название детали
   string name = 2;
 
-  // Описание детали
+  // Description описание детали
   string description = 3;
 
-  // Цена в копейках (5000₽ = 500000)
+  // Price цена в копейках (например, 5000₽ = 500000)
   int64 price = 4;
 
-  // TODO: Добавить остальные поля из описания задания
+  // PartType тип детали
+  PartType part_type = 5;
+
+  // StockQuantity количество на складе
+  int64 stock_quantity = 6;
+
+  // CreatedAt дата создания
+  google.protobuf.Timestamp created_at = 7;
 }
 
-// Запрос на получение детали по UUID
+// GetPartRequest запрос на получение детали по UUID
 message GetPartRequest {
   string uuid = 1;
 }
 
-// TODO: Реализовать GetPartResponse
+// GetPartResponse ответ метода, содержащий объект Part
+message GetPartResponse {
+  Part part = 1;
+}
 
-// TODO: Реализовать ListPartsRequest
+// GetListPartsRequest запрос на получение список деталей с возможностью фильтрации по типу или по конкретным UUID
+message ListPartsRequest {
+    PartType part_type = 1;
+    repeated string uuids = 2;
+}
 
-// TODO: Реализовать ListPartsResponse
+// ListPartsResponse ответ метода, содержащий список найденных деталей
+message ListPartsResponse {
+  repeated Part parts = 1;
+}
