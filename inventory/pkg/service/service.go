@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"sort"
 
 	"github.com/go-faster/errors"
 	"github.com/google/uuid"
@@ -98,7 +99,6 @@ func (s *InventoryServer) GetPart(
 	ctx context.Context,
 	req *inventoryv1.GetPartRequest,
 ) (*inventoryv1.GetPartResponse, error) {
-
 	partUUID, err := uuid.Parse(req.GetUuid())
 	if err != nil {
 		return nil, errors.New("не удалось получить uuid")
@@ -111,7 +111,7 @@ func (s *InventoryServer) GetPart(
 
 	// 2. Валидировать формат UUID → INVALID_ARGUMENT
 	if _, err := uuid.Parse(partUUID.String()); err != nil {
-		return nil, status.Error(codes.InvalidArgument, "неверный формат part_uuid")
+		return nil, status.Errorf(codes.InvalidArgument, "неверный формат part_uuid: %s", req.GetUuid())
 	}
 	// 3. Найти деталь в map
 	part, ok := s.parts[partUUID]
@@ -134,14 +134,6 @@ func (s *InventoryServer) GetPart(
 			CreatedAt:     part.CreatedAt,
 		},
 	}, nil
-
-	// TODO: Валидация формата UUID v4
-	// Можно использовать github.com/google/uuid:
-	// if _, err := uuid.Parse(req.GetUuid()); err != nil {
-	//     return nil, status.Errorf(codes.InvalidArgument, "неверный формат uuid: %s", req.GetUuid())
-	// }
-
-	return nil, status.Error(codes.Unimplemented, "метод GetPart не реализован")
 }
 
 // ListParts возвращает список деталей с опциональной фильтрацией по типу
@@ -151,11 +143,74 @@ func (s *InventoryServer) ListParts(
 ) (*inventoryv1.ListPartsResponse, error) {
 	// TODO: Реализовать метод
 	// 1. Если передан список uuids → найти детали по UUID (сохраняя порядок запроса)
-	//    - Проверить формат каждого UUID → INVALID_ARGUMENT
-	//    - Если хоть один UUID не найден → NOT_FOUND
-	// 2. Иначе если part_type == UNSPECIFIED → вернуть все детали
-	// 3. Иначе → фильтровать по типу
-	// 4. Отсортировать по имени (только для фильтрации по типу, не для uuids)
+	if len(req.GetUuids()) > 0 {
+		result := make([]*inventoryv1.Part, 0, len(req.GetUuids()))
 
-	return nil, status.Error(codes.Unimplemented, "метод ListParts не реализован")
+		for _, id := range req.GetUuids() {
+			//    - Проверить формат каждого UUID → INVALID_ARGUMENT
+			//    - Если хоть один UUID не найден → NOT_FOUND
+			u, err := uuid.Parse(id)
+			if err != nil {
+				return nil, status.Errorf(codes.InvalidArgument, "неверный формат uuid: %s", id)
+			}
+
+			part, ok := s.parts[u]
+			if !ok {
+				return nil, status.Errorf(codes.NotFound, "part не найдена: %s", id)
+			}
+
+			result = append(result, &inventoryv1.Part{
+				Uuid:          part.UUID,
+				Name:          part.Name,
+				Description:   part.Description,
+				Price:         part.Price,
+				PartType:      part.PartType,
+				StockQuantity: part.StockQuantity,
+				CreatedAt:     part.CreatedAt,
+			})
+		}
+
+		return &inventoryv1.ListPartsResponse{
+			Parts: result,
+		}, nil
+	}
+	// 2. Иначе если part_type == UNSPECIFIED → вернуть все детали
+	parts := make([]Part, 0, len(s.parts))
+	for _, p := range s.parts {
+		parts = append(parts, p)
+	}
+
+	// 3. Иначе → фильтровать по типу
+	if req.GetPartType() != inventoryv1.PartType_PART_TYPE_UNSPECIFIED {
+		filtered := make([]Part, 0)
+
+		for _, p := range parts {
+			if p.PartType == req.GetPartType() {
+				filtered = append(filtered, p)
+			}
+		}
+
+		parts = filtered
+	}
+	// 4. Отсортировать по имени (только для фильтрации по типу, не для uuids)
+	sort.Slice(parts, func(i, j int) bool {
+		return parts[i].Name < parts[j].Name
+	})
+
+	result := make([]*inventoryv1.Part, 0, len(parts))
+	for _, p := range parts {
+		result = append(result, &inventoryv1.Part{
+			Uuid:          p.UUID,
+			Name:          p.Name,
+			Description:   p.Description,
+			Price:         p.Price,
+			PartType:      p.PartType,
+			StockQuantity: p.StockQuantity,
+			CreatedAt:     p.CreatedAt,
+		})
+	}
+
+	return &inventoryv1.ListPartsResponse{
+		Parts: result,
+	}, nil
 }
