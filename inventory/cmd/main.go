@@ -9,11 +9,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mercuryqa/inventory/internal/interceptor"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
 
+	"github.com/mercuryqa/inventory/internal/interceptor"
 	svc "github.com/mercuryqa/inventory/pkg/service"
 	inventoryv1 "github.com/mercuryqa/shared/pkg/proto/inventory/v1"
 )

@@ -9,11 +9,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mercuryqa/payment/internal/interceptor"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
 
+	"github.com/mercuryqa/payment/internal/interceptor"
 	svc "github.com/mercuryqa/payment/pkg/service"
 	paymentv1 "github.com/mercuryqa/shared/pkg/proto/payment/v1"
 )
@@ -50,8 +50,6 @@ func main() {
 			interceptor.LoggerInterceptor(),
 		),
 	)
-
-
 
 	paymentv1.RegisterPaymentServiceServer(grpcServer, &svc.PaymentServer{})
 
