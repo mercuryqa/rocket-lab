@@ -1,7 +1,7 @@
 package main
 
 import (
-	"errors"
+	"context"
 	"log/slog"
 	"net"
 	"os"
@@ -56,38 +56,21 @@ func main() {
 	// Включаем reflection для postman/grpcurl
 	reflection.Register(grpcServer)
 
-	slog.Info("запуск InventoryService", "адрес", grpcAddress)
+	// Контекст, который отменяется по SIGINT/SIGTERM или при падении сервера.
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
 
 	go func() {
-		if err := grpcServer.Serve(lis); err != nil {
-			if !errors.Is(err, grpc.ErrServerStopped) {
-				slog.Error("ошибка запуска сервера", "error", err)
-				os.Exit(1)
-			}
+		slog.Info("gRPC сервер запущен", "address", grpcAddress)
+		if serveErr := grpcServer.Serve(lis); serveErr != nil {
+			slog.Error("ошибка запуска сервера", "error", serveErr)
+			cancel() // будим main, чтобы не висеть бесконечно
 		}
 	}()
 
-	// GracefulStop
-	shutdownTimeout := 10 * time.Second
-
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
-
-	slog.Info("завершение работы gRPC сервера...")
-
-	done := make(chan struct{})
-
-	go func() {
-		grpcServer.GracefulStop()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		slog.Info("gRPC сервер остановлен корректно")
-	case <-time.After(shutdownTimeout):
-		slog.Warn("graceful shutdown timeout, принудительная остановка")
-		grpcServer.Stop()
-	}
+	// Ждём сигнал от ОС или падение сервера.
+	<-ctx.Done()
+	slog.Info("остановка gRPC сервера")
+	grpcServer.GracefulStop()
+	slog.Info("сервер остановлен")
 }

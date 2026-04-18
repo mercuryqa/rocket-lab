@@ -108,24 +108,29 @@ func main() {
 		IdleTimeout:       idleTimeout,
 	}
 
+	// Контекст, который отменяется по SIGINT/SIGTERM или при падении сервера.
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+
 	go func() {
-		slog.Info("HTTP-сервер запущен на порту", "port", httpPort)
-		if serveErr := server.ListenAndServe(); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
-			slog.Error("ошибка запуска сервера", "error", serveErr)
+		slog.Info("HTTP-сервер запущен", "port", httpPort)
+
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			slog.Error("ошибка сервера", "error", err)
+			cancel() // будим main, чтобы не висеть бесконечно
 		}
 	}()
 
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+	// Ждём сигнал от ОС или падение сервера.
+	<-ctx.Done()
 
-	slog.Info("завершение работы сервера...")
+	slog.Info("остановка HTTP-сервера")
 
-	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-	defer cancel()
+	shutdownCtx, stop := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer stop()
 
-	if shutdownErr := server.Shutdown(ctx); shutdownErr != nil {
-		slog.Error("ошибка при остановке сервера", "error", shutdownErr)
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		slog.Error("ошибка при остановке сервера", "error", err)
 	}
 
 	slog.Info("сервер остановлен")
