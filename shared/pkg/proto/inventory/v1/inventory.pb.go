@@ -268,7 +268,7 @@ func (x *GetPartResponse) GetPart() *Part {
 	return nil
 }
 
-// GetListPartsRequest запрос на получение список деталей с возможностью фильтрации по типу или по конкретным UUID
+// ListPartsRequest запрос на получение список деталей с возможностью фильтрации по типу или по конкретным UUID
 type ListPartsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	PartType      PartType               `protobuf:"varint,1,opt,name=part_type,json=partType,proto3,enum=inventory.v1.PartType" json:"part_type,omitempty"`

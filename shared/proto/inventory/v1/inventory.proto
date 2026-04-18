@@ -57,10 +57,10 @@ message GetPartResponse {
   Part part = 1;
 }
 
-// GetListPartsRequest запрос на получение список деталей с возможностью фильтрации по типу или по конкретным UUID
+// ListPartsRequest запрос на получение список деталей с возможностью фильтрации по типу или по конкретным UUID
 message ListPartsRequest {
-    PartType part_type = 1;
-    repeated string uuids = 2;
+  PartType part_type = 1;
+  repeated string uuids = 2;
 }
 
 // ListPartsResponse ответ метода, содержащий список найденных деталей
