@@ -89,6 +89,15 @@ func NewInventoryServer() *InventoryServer {
 				StockQuantity: 7,
 				CreatedAt:     now,
 			},
+			uuid.MustParse("550e8400-e29b-41d4-a716-446655440007"): {
+				UUID:          "550e8400-e29b-41d4-a716-446655440007",
+				Name:          "Плазменный корпус",
+				Description:   "Экспериментальный корпус (нет на складе)",
+				Price:         2000000, // 20000₽
+				PartType:      inventoryv1.PartType_PART_TYPE_HULL,
+				StockQuantity: 0,
+				CreatedAt:     now,
+			},
 		},
 	}
 }

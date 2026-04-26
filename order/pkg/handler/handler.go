@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -153,8 +154,8 @@ func (h *OrderHandler) CreateOrder(ctx context.Context, req *orderv1.CreateOrder
 		Uuids: uuids,
 	})
 	if err != nil {
-		return &orderv1.CreateOrderInternalServerError{
-			Code:    500,
+		return &orderv1.CreateOrderNotFound{
+			Code:    404,
 			Message: "inventory сервис не доступен",
 		}, nil
 	}
@@ -285,7 +286,7 @@ func (h *OrderHandler) PayOrder(ctx context.Context, req *orderv1.PayOrderReques
 		}, nil
 	}
 	transactionUUID := uuid.MustParse(resp.TransactionUuid)
-	payMethod := paymentMethod.String()
+	payMethod := strings.TrimPrefix(paymentMethod.String(), "PAYMENT_METHOD_")
 
 	// 4. Обновить статус на PAID и сохранить transaction_uuid
 	order.Status = string(orderv1.OrderStatusPAID)
