@@ -4,7 +4,6 @@ import (
 	"context"
 	"sort"
 
-	"github.com/go-faster/errors"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -13,7 +12,7 @@ import (
 	inventoryv1 "github.com/mercuryqa/shared/pkg/proto/inventory/v1"
 )
 
-// Part представляет деталь космического корабля
+// Part представляет деталь космического корабля.
 type Part struct {
 	UUID          string
 	Name          string
@@ -24,13 +23,13 @@ type Part struct {
 	CreatedAt     *timestamppb.Timestamp
 }
 
-// InventoryServer реализует gRPC сервис
+// InventoryServer реализует gRPC сервис.
 type InventoryServer struct {
 	inventoryv1.UnimplementedInventoryServiceServer
 	parts map[uuid.UUID]Part
 }
 
-// NewInventoryServer создаёт сервер с предзагруженными seed-данными
+// NewInventoryServer создаёт сервер с предзагруженными seed-данными.
 func NewInventoryServer() *InventoryServer {
 	now := timestamppb.Now()
 
@@ -94,23 +93,14 @@ func NewInventoryServer() *InventoryServer {
 	}
 }
 
-// GetPart возвращает деталь по UUID
+// GetPart возвращает деталь по UUID.
 func (s *InventoryServer) GetPart(
 	ctx context.Context,
 	req *inventoryv1.GetPartRequest,
 ) (*inventoryv1.GetPartResponse, error) {
+	// 2. Валидировать формат UUID → INVALID_ARGUMENT
 	partUUID, err := uuid.Parse(req.GetUuid())
 	if err != nil {
-		return nil, errors.New("не удалось получить uuid")
-	}
-
-	// 1. Проверить, что uuid не пустой → INVALID_ARGUMENT
-	if partUUID.String() == "" {
-		return nil, status.Error(codes.InvalidArgument, "part_uuid пустой")
-	}
-
-	// 2. Валидировать формат UUID → INVALID_ARGUMENT
-	if _, err := uuid.Parse(partUUID.String()); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "неверный формат part_uuid: %s", req.GetUuid())
 	}
 	// 3. Найти деталь в map
@@ -136,12 +126,11 @@ func (s *InventoryServer) GetPart(
 	}, nil
 }
 
-// ListParts возвращает список деталей с опциональной фильтрацией по типу
+// ListParts возвращает список деталей с опциональной фильтрацией по типу.
 func (s *InventoryServer) ListParts(
 	ctx context.Context,
 	req *inventoryv1.ListPartsRequest,
 ) (*inventoryv1.ListPartsResponse, error) {
-	// TODO: Реализовать метод
 	// 1. Если передан список uuids → найти детали по UUID (сохраняя порядок запроса)
 	if len(req.GetUuids()) > 0 {
 		result := make([]*inventoryv1.Part, 0, len(req.GetUuids()))
